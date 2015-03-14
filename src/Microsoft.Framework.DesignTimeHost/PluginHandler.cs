@@ -23,13 +23,13 @@ namespace Microsoft.Framework.DesignTimeHost
             _plugins = new ConcurrentDictionary<string, IPlugin>(StringComparer.Ordinal);
         }
 
-        public void ProcessMessage(PluginMessage data, IAssemblyLoadContext assemblyLoadContext)
+        public PluginMessageResult ProcessMessage(PluginMessage data)
         {
             switch (data.MessageName)
             {
                 case "RegisterPlugin":
                     ProcessRegisterMessage(data, assemblyLoadContext);
-                    break;
+                    return PluginMessageResult.PluginRegistered;
                 case "UnregisterPlugin":
                     ProcessUnregisterMessage(data);
                     break;
@@ -37,6 +37,13 @@ namespace Microsoft.Framework.DesignTimeHost
                     ProcessPluginMessage(data);
                     break;
             }
+
+            return PluginMessageResult.Ignore;
+        }
+
+        public void Work(IAssemblyLoadContext assemblyLoadContext)
+        {
+
         }
 
         private void ProcessPluginMessage(PluginMessage data)

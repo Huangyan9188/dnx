@@ -31,6 +31,8 @@ namespace Microsoft.Framework.DesignTimeHost
 
         private readonly Trigger<string> _appPath = new Trigger<string>();
         private readonly Trigger<string> _configuration = new Trigger<string>();
+        private readonly Trigger<Void> _pluginRegistered = new Trigger<Void>();
+        private readonly Trigger<Void> _pluginWorkNeeded = new Trigger<Void>();
         private readonly Trigger<Void> _filesChanged = new Trigger<Void>();
         private readonly Trigger<Void> _rebuild = new Trigger<Void>();
         private readonly Trigger<Void> _restoreComplete = new Trigger<Void>();
@@ -165,6 +167,11 @@ namespace Microsoft.Framework.DesignTimeHost
                 }
 
                 if (PerformCompilation())
+                {
+                    SendOutgoingMessages();
+                }
+
+                if (PerformPluginWork())
                 {
                     SendOutgoingMessages();
                 }
@@ -317,7 +324,17 @@ namespace Microsoft.Framework.DesignTimeHost
 
                         var assemblyLoadContext = loadContextFactory.Create();
 
-                        _pluginHandler.ProcessMessage(pluginData, assemblyLoadContext);
+                        var result = _pluginHandler.ProcessMessage(pluginData, assemblyLoadContext);
+
+                        switch (result)
+                        {
+                            case PluginMessageResult.PluginRegistered:
+                                _pluginRegistered.Value = default(Void);
+                                break;
+                            case PluginMessageResult.MessageEnqueued:
+                                _pluginWorkNeeded.Value = default(Void);
+                                break;
+                        }
                     }
                     break;
             }
@@ -334,7 +351,8 @@ namespace Microsoft.Framework.DesignTimeHost
                 _filesChanged.WasAssigned ||
                 _rebuild.WasAssigned ||
                 _restoreComplete.WasAssigned ||
-                _sourceTextChanged.WasAssigned)
+                _sourceTextChanged.WasAssigned ||
+                _pluginRegistered.WasAssigned)
             {
                 bool triggerBuildOutputs = _rebuild.WasAssigned || _filesChanged.WasAssigned;
                 bool triggerDependencies = _restoreComplete.WasAssigned || _rebuild.WasAssigned;
@@ -488,6 +506,18 @@ namespace Microsoft.Framework.DesignTimeHost
             }
 
             return true;
+        }
+
+        private bool PerformPluginWork()
+        {
+            if (_pluginRegistered.WasAssigned)
+            {
+                _pluginHandler.Work();
+
+                return true;
+            }
+
+            return false;
         }
 
         private bool UpdateProjectCompilation(ProjectWorld project, out ProjectCompilation compilation)
